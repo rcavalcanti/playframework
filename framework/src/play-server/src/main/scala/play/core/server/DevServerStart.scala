@@ -95,11 +95,6 @@ object DevServerStart {
 
         // Create reloadable ApplicationProvider
         val appProvider = new ApplicationProvider {
-          // Use a stamped lock over a synchronized block so we can better control concurrency and avoid
-          // blocking.  This improves performance from 4851.53 req/s to 7133.80 req/s and fixes #7614.
-          // Arguably performance shouldn't matter because load tests should be run against a production
-          // configuration, but there's no point in making it slower than it has to be...
-          val sl = new java.util.concurrent.locks.StampedLock
 
           var lastState: Try[Application] = Failure(new PlayException("Not initialized", "?"))
           var lastLifecycle: Option[DefaultApplicationLifecycle] = None
