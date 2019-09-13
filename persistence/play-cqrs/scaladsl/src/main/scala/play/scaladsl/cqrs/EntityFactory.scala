@@ -19,24 +19,34 @@ import scala.reflect.ClassTag
 import akka.annotation.ApiMayChange
 import akka.cluster.sharding.typed.ShardingEnvelope
 
+trait EntityDef[Command, Event, State] {
+  protected type CommandHandler = (State, Command) => ReplyEffect[Event, State]
+  protected type EventHandler = (State, Event) => State
+
+  def emptyState: State
+  def commandHandler: CommandHandler
+  def eventHandler: EventHandler
+  def tagger: Tagger[Event]
+}
+
 @ApiMayChange
-class EntityFactory[Command: ClassTag, Event, State](
-    name: String,
+class EntityFactory[Command <: ExpectingReply[_]: ClassTag, Event, State](
+    typeKey: EntityTypeKey[Command],
     behaviorFunc: EntityContext => EventSourcedBehavior[Command, Event, State],
     tagger: Tagger[Event],
     clusterSharding: ClusterSharding
 ) {
 
-  def this(
-    name: String,
+  private def this(
+    typeKey: EntityTypeKey[Command],
     emptyState: State,
     commandHandler: (State, Command) => ReplyEffect[Event, State],
     eventHandler: (State, Event) => State,
     tagger: Tagger[Event],
     clusterSharding: ClusterSharding
   ) = this(
-    name,
-    ctx => EventSourcedEntity.withEnforcedReplies[Command, Event, State](
+    typeKey,
+    (ctx: EntityContext) => EventSourcedEntity.withEnforcedReplies[Command, Event, State](
       typeKey,
       ctx.entityId,
       emptyState,
@@ -47,7 +57,22 @@ class EntityFactory[Command: ClassTag, Event, State](
     clusterSharding
   )
 
-  private val typeKey: EntityTypeKey[Command] = EntityTypeKey[Command](name)
+  def this(
+    name: String,
+    behaviorFunc: EntityContext => EventSourcedBehavior[Command, Event, State],
+    tagger: Tagger[Event],
+    clusterSharding: ClusterSharding
+  ) = this(EntityTypeKey[Command](name), behaviorFunc, tagger, clusterSharding)
+
+  def this(name: String, entityDef: EntityDef[Command, Event, State], clusterSharding: ClusterSharding) =
+    this(
+      EntityTypeKey[Command](name),
+      entityDef.emptyState,
+      entityDef.commandHandler,
+      entityDef.eventHandler,
+      entityDef.tagger,
+      clusterSharding
+    )
 
   def configureEntity(entity: Entity[Command, ShardingEnvelope[Command]]): Entity[Command, ShardingEnvelope[Command]] =
     entity

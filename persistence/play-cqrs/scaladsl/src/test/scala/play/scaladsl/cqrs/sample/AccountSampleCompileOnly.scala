@@ -26,17 +26,8 @@ import akka.cluster.sharding.typed.ShardingEnvelope
  * Here we inject the cluster sharding, wire the behavior, adding a tagger and making it easier to retrieve an instance
  */
 abstract class AccountComponent extends CqrsComponents {
-
-  val tagger = Tagger[AccountEvent].addTagGroup("AccountEvent", 10)
-
   lazy val accountFactory: EntityFactory[AccountCommand, AccountEvent, Account] =
-    createEntityFactory(
-      "AccountEntity",
-      Account.empty,
-      Account.commandHandler,
-      Account.eventHandler,
-      tagger
-    )
+    createEntityFactory("AccountEntity", AccountEntity)
 }
 
 /**
@@ -48,21 +39,21 @@ case class Account(balance: Double) {
     balance - amount < 0
   }
 
-  private def withDeposit(amount: Double) = {
+  def withDeposit(amount: Double) = {
     copy(balance = balance + amount)
   }
 
-  private def withWithdrawal(amount: Double) = {
+  def withWithdrawal(amount: Double) = {
     copy(balance = balance - amount)
   }
 
 }
 
-object Account {
+object AccountEntity extends EntityDef[AccountCommand, AccountEvent, Account] {
 
-  val empty = Account(balance = 0)
+  override val emptyState = Account(balance = 0)
 
-  val commandHandler: (Account, AccountCommand) => ReplyEffect[AccountEvent, Account] = (account, cmd) => cmd match {
+  override val commandHandler = (account, cmd) => cmd match {
     case Deposit(amount, _) =>
       Effect
         .persist(Deposited(amount))
@@ -81,10 +72,12 @@ object Account {
         }
   }
 
-  val eventHandler: (Account, AccountEvent) => Account = (account, evt) =>  evt match {
+  override val eventHandler = (account, evt) => evt match {
     case Deposited(amount) => account.withDeposit(amount)
     case Withdrawn(amount) => account.withWithdrawal(amount)
   }
+
+  override val tagger = Tagger[AccountEvent].addTagGroup("AccountEvent", 10)
 
 }
 
