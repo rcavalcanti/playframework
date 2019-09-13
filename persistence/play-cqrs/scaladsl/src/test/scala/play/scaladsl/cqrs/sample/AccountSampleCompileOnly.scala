@@ -30,7 +30,13 @@ abstract class AccountComponent extends CqrsComponents {
   val tagger = Tagger[AccountEvent].addTagGroup("AccountEvent", 10)
 
   lazy val accountFactory: EntityFactory[AccountCommand, AccountEvent, Account] =
-    createEntityFactory("AccountEntity", Account.behavior, tagger)
+    createEntityFactory(
+      "AccountEntity",
+      Account.empty,
+      Account.commandHandler,
+      Account.eventHandler,
+      tagger
+    )
 }
 
 /**
@@ -69,15 +75,14 @@ case class Account(balance: Double) {
 
 object Account {
 
-  def empty: Account = Account(balance = 0)
+  val empty = Account(balance = 0)
 
-  def behavior(entityContext: EntityContext): EventSourcedBehavior[AccountCommand, AccountEvent, Account] =
-    EventSourcedBehavior.withEnforcedReplies(
-      persistenceId = PersistenceId(entityContext.entityId),
-      emptyState = Account.empty,
-      commandHandler = (account, cmd) => account.applyCommand(cmd),
-      eventHandler = (account, evt) => account.applyEvent(evt)
-    )
+  val commandHandler: (Account, AccountCommand) => ReplyEffect[AccountEvent, Account] =
+    (account, cmd) => account.applyCommand(cmd)
+
+  val eventHandler: (Account, AccountEvent) => Account =
+    (account, evt) => account.applyEvent(evt)
+
 }
 
 sealed trait AccountEvent

@@ -32,4 +32,13 @@ trait CqrsComponents {
   ): EntityFactory[Command, Event, State] =
     new EntityFactory(name, behaviorFunc, tagger, clusterSharding)
 
+  final def createEntityFactory[Command: ClassTag, Event, State](
+      name: String,
+      emptyState: State,
+      commandHandler: (State, Command) => ReplyEffect[Event, State],
+      eventHandler: (State, Event) => State,
+      tagger: Tagger[Event]
+  ): EntityFactory[Command, Event, State] =
+    new EntityFactory(name, emptyState, commandHandler, eventHandler, tagger, clusterSharding)
+
 }

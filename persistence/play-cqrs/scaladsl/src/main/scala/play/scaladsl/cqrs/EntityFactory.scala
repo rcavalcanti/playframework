@@ -27,6 +27,26 @@ class EntityFactory[Command: ClassTag, Event, State](
     clusterSharding: ClusterSharding
 ) {
 
+  def this(
+    name: String,
+    emptyState: State,
+    commandHandler: (State, Command) => ReplyEffect[Event, State],
+    eventHandler: (State, Event) => State,
+    tagger: Tagger[Event],
+    clusterSharding: ClusterSharding
+  ) = this(
+    name,
+    ctx => EventSourcedEntity.withEnforcedReplies[Command, Event, State](
+      typeKey,
+      ctx.entityId,
+      emptyState,
+      commandHandler,
+      eventHandler
+    ),
+    tagger,
+    clusterSharding
+  )
+
   private val typeKey: EntityTypeKey[Command] = EntityTypeKey[Command](name)
 
   def configureEntity(entity: Entity[Command, ShardingEnvelope[Command]]): Entity[Command, ShardingEnvelope[Command]] =
