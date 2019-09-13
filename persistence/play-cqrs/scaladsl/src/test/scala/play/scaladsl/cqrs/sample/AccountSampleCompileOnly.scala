@@ -44,31 +44,16 @@ abstract class AccountComponent extends CqrsComponents {
  */
 case class Account(balance: Double) {
 
-  def applyCommand(cmd: AccountCommand): ReplyEffect[AccountEvent, Account] =
-    cmd match {
-      case Deposit(amount, _) =>
-        Effect
-          .persist(Deposited(amount))
-          .thenReply(cmd) { _ =>
-            Accepted
-          }
+  def canWithdraw(amount: Double): Boolean = {
+    balance - amount < 0
+  }
 
-      case Withdraw(amount, _) if balance - amount < 0 =>
-        Effect.reply(cmd)(Rejected("Insufficient balance!"))
+  private def withDeposit(amount: Double) = {
+    copy(balance = balance + amount)
+  }
 
-      case Withdraw(amount, _) =>
-        Effect
-          .persist(Withdrawn(amount))
-          .thenReply(cmd) { _ =>
-            Accepted
-          }
-    }
-
-  def applyEvent(evt: AccountEvent): Account = {
-    evt match {
-      case Deposited(amount) => copy(balance = balance + amount)
-      case Withdrawn(amount) => copy(balance = balance - amount)
-    }
+  private def withWithdrawal(amount: Double) = {
+    copy(balance = balance - amount)
   }
 
 }
@@ -77,11 +62,29 @@ object Account {
 
   val empty = Account(balance = 0)
 
-  val commandHandler: (Account, AccountCommand) => ReplyEffect[AccountEvent, Account] =
-    (account, cmd) => account.applyCommand(cmd)
+  val commandHandler: (Account, AccountCommand) => ReplyEffect[AccountEvent, Account] = (account, cmd) => cmd match {
+    case Deposit(amount, _) =>
+      Effect
+        .persist(Deposited(amount))
+        .thenReply(cmd) { _ =>
+          Accepted
+        }
 
-  val eventHandler: (Account, AccountEvent) => Account =
-    (account, evt) => account.applyEvent(evt)
+    case Withdraw(amount, _) if account.canWithdraw(amount) =>
+      Effect.reply(cmd)(Rejected("Insufficient balance!"))
+
+    case Withdraw(amount, _) =>
+      Effect
+        .persist(Withdrawn(amount))
+        .thenReply(cmd) { _ =>
+          Accepted
+        }
+  }
+
+  val eventHandler: (Account, AccountEvent) => Account = (account, evt) =>  evt match {
+    case Deposited(amount) => account.withDeposit(amount)
+    case Withdrawn(amount) => account.withWithdrawal(amount)
+  }
 
 }
 
